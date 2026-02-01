@@ -317,7 +317,7 @@ export function SignalPlot({
           .attr("fill", "white")
           .attr("opacity", 0.65);
 
-        g.style("cursor", "pointer").on("click", (_event, d) => {
+        g.style("cursor", "pointer").on("click", (_event, d: TurningPoint) => {
           onSelectElement?.({ kind: "turning", index: d.i, value: d.x });
         });
       });
