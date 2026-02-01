@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Options, ResidueHandling } from "./lib/rainflow";
 import { buildMatrix, rainflowCount } from "./lib/rainflow";
+import { PLOT_BASE } from "./lib/plotLayout";
 
 import { SignalPlot, type PlotStyle } from "./components/SignalPlot";
 import { RainOverlayCanvas, type RainGraphics, type RainMode } from "./components/RainOverlayCanvas";
@@ -8,7 +9,10 @@ import { StackView } from "./components/StackView";
 import { CycleTable } from "./components/CycleTable";
 import { MatrixHeatmap } from "./components/MatrixHeatmap";
 
-const demoRaw = [-2, 1, -3, 5, -1, 3, -4, 4, -2];
+const demoRaw = [
+  -1, 2, -3, 5, -2, 4, -5, 6, -2, 3, -4, 5, -1, 2, -3, 4, -6, 5, -2, 3,
+  -1, 4, -5, 6, -3, 4, -2, 5, -4, 3, -1, 2, -3, 4, -2, 3
+];
 
 type Tab = "analysis" | "graphics";
 
@@ -69,13 +73,13 @@ export default function App() {
     mode: "cinematic",
     enabled: true,
     spawnFromClosedCycles: true,
-    intensity: 4.0,
-    spawnProb: 0.35,
+    intensity: 4.6,
+    spawnProb: 0.4,
     gravity: 900,
     baseSpeed: 120,
     size: 2.4,
     stretch: 1.0,
-    trail: 0.0,
+    trail: 0.2,
     showRoofPath: true,
     pagodaMaxDrops: 40
   });
@@ -85,13 +89,13 @@ export default function App() {
     showGrid: true,
     showAreaFill: true,
     smooth: true,
-    glow: 0.6
+    glow: 0.85
   });
 
   // plot container size for canvas overlay
   const plotWrapRef = useRef<HTMLDivElement | null>(null);
-  const [plotWidth, setPlotWidth] = useState(900);
-  const plotHeight = 260;
+  const [plotWidth, setPlotWidth] = useState(PLOT_BASE.width);
+  const plotHeight = PLOT_BASE.height;
 
   useEffect(() => {
     const el = plotWrapRef.current;
@@ -122,60 +126,99 @@ export default function App() {
 
       {tab === "analysis" && (
         <>
-          <div className="card">
-            <div className="row">
-              <label>
-                Residue
-                <select value={residue} onChange={(e) => setResidue(e.target.value as ResidueHandling)}>
-                  <option value="discard">discard</option>
-                  <option value="half">half</option>
-                  <option value="close">close (wrap half)</option>
-                </select>
-              </label>
-
-              <label>
-                Endpoints as reversals
-                <select value={useEndpoints ? "on" : "off"} onChange={(e) => setUseEndpoints(e.target.value === "on")}>
-                  <option value="on">on</option>
-                  <option value="off">off</option>
-                </select>
-              </label>
-
-              <label>
-                bins(range)
-                <input
-                  type="number"
-                  min={4}
-                  max={80}
-                  value={binsRange}
-                  onChange={(e) => setBinsRange(Math.max(4, Math.min(80, Number(e.target.value))))}
-                  style={{ width: 80 }}
+          <div className="card plotStage">
+            <div className="plotRow">
+              <div className="plotArea" ref={plotWrapRef}>
+                <SignalPlot
+                  raw={raw}
+                  turningPoints={computed.turningPoints}
+                  currentTPIndex={cursor}
+                  heightPx={plotHeight}
+                  style={plotStyle}
+                  cycles={cyclesUpToCursor}
+                  windowABCD={ev?.windowABCD ?? null}
                 />
-              </label>
-
-              <label>
-                bins(mean)
-                <input
-                  type="number"
-                  min={4}
-                  max={80}
-                  value={binsMean}
-                  onChange={(e) => setBinsMean(Math.max(4, Math.min(80, Number(e.target.value))))}
-                  style={{ width: 80 }}
+                <RainOverlayCanvas
+                  widthPx={plotWidth}
+                  heightPx={plotHeight}
+                  raw={raw}
+                  turningPoints={computed.turningPoints}
+                  closedNow={closedNow}
+                  playing={playing}
+                  graphics={gfx}
                 />
-              </label>
-            </div>
+              </div>
 
-            <div className="row" style={{ marginTop: 10 }}>
-              <button onClick={() => setCursor(c => Math.max(0, c - 1))} disabled={cursor <= 0}>Back</button>
-              <button onClick={() => setCursor(c => Math.min(maxCursor, c + 1))} disabled={cursor >= maxCursor}>Step</button>
-              <button onClick={() => setPlaying(p => !p)} disabled={computed.events.length === 0}>{playing ? "Pause" : "Play"}</button>
-              <button onClick={() => { setPlaying(false); setCursor(0); }}>Reset</button>
-              <span className="mono">cursor: {cursor}/{maxCursor}</span>
-              <span className="small">TP={computed.turningPoints.length} cycles(total)={computed.cycles.length}</span>
-            </div>
+              <div className="plotControls">
+                <div className="controlGroup">
+                  <div className="controlTitle">Playback</div>
+                  <div className="buttonStack">
+                    <button onClick={() => setCursor(c => Math.max(0, c - 1))} disabled={cursor <= 0}>Back</button>
+                    <button onClick={() => setCursor(c => Math.min(maxCursor, c + 1))} disabled={cursor >= maxCursor}>Step</button>
+                    <button onClick={() => setPlaying(p => !p)} disabled={computed.events.length === 0}>{playing ? "Pause" : "Play"}</button>
+                    <button onClick={() => { setPlaying(false); setCursor(0); }}>Reset</button>
+                  </div>
+                  <div className="statRow">
+                    <span className="mono statPill">cursor {cursor}/{maxCursor}</span>
+                    <span className="mono statPill">TP {computed.turningPoints.length}</span>
+                    <span className="mono statPill">cycles {computed.cycles.length}</span>
+                  </div>
+                </div>
 
-            <div className="small" style={{ marginTop: 10 }}>Raw input (comma-separated):</div>
+                <div className="controlGroup">
+                  <div className="controlTitle">Analysis</div>
+                  <label className="controlField">
+                    Residue
+                    <select value={residue} onChange={(e) => setResidue(e.target.value as ResidueHandling)}>
+                      <option value="discard">discard</option>
+                      <option value="half">half</option>
+                      <option value="close">close (wrap half)</option>
+                    </select>
+                  </label>
+
+                  <label className="controlField">
+                    Endpoints
+                    <select value={useEndpoints ? "on" : "off"} onChange={(e) => setUseEndpoints(e.target.value === "on")}>
+                      <option value="on">on</option>
+                      <option value="off">off</option>
+                    </select>
+                  </label>
+
+                  <label className="controlField">
+                    bins(range)
+                    <input
+                      type="number"
+                      min={4}
+                      max={80}
+                      value={binsRange}
+                      onChange={(e) => setBinsRange(Math.max(4, Math.min(80, Number(e.target.value))))}
+                    />
+                  </label>
+
+                  <label className="controlField">
+                    bins(mean)
+                    <input
+                      type="number"
+                      min={4}
+                      max={80}
+                      value={binsMean}
+                      onChange={(e) => setBinsMean(Math.max(4, Math.min(80, Number(e.target.value))))}
+                    />
+                  </label>
+                </div>
+
+                <div className="controlGroup legendGroup">
+                  <div className="controlTitle">Legend</div>
+                  <div className="legendItem"><span className="legendDot legendDotA" />Turning points</div>
+                  <div className="legendItem"><span className="legendDot legendDotB" />Closed cycles (B–C)</div>
+                  <div className="legendItem"><span className="legendDot legendDotC" />Window A‑B‑C‑D</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="card" style={{ marginTop: 12 }}>
+            <div className="small">Raw input (comma-separated):</div>
             <textarea
               value={rawText}
               onChange={(e) => {
@@ -187,28 +230,8 @@ export default function App() {
                   .filter(n => Number.isFinite(n));
                 if (nums.length >= 2) setRaw(nums);
               }}
-              style={{ width: "100%", minHeight: 60, borderRadius: 10, padding: 10 }}
             />
-            <div className="small">Tip: <span className="mono">-2, 1, -3, 5, -1, 3, -4, 4, -2</span></div>
-          </div>
-
-          <div className="card" style={{ marginTop: 12, position: "relative" }} ref={plotWrapRef}>
-            <SignalPlot
-              raw={raw}
-              turningPoints={computed.turningPoints}
-              currentTPIndex={cursor}
-              heightPx={plotHeight}
-              style={plotStyle}
-            />
-            <RainOverlayCanvas
-              widthPx={plotWidth}
-              heightPx={plotHeight}
-              raw={raw}
-              turningPoints={computed.turningPoints}
-              closedNow={closedNow}
-              playing={playing}
-              graphics={gfx}
-            />
+            <div className="small">Tip: <span className="mono">{demoRaw.join(", ")}</span></div>
           </div>
 
           <div className="grid" style={{ marginTop: 12 }}>
@@ -255,12 +278,11 @@ export default function App() {
             <label>
               spawn source
               <select
-                value={gfx.spawnFromClosedCycles ? "closed" : "turning"}
-                onChange={(e) => setGfx(s => ({ ...s, spawnFromClosedCycles: e.target.value === "closed" }))}
-                disabled={gfx.mode === "pagoda"}
+                value="closed"
+                onChange={() => null}
+                disabled
               >
-                <option value="closed">Closed cycles (B/C)</option>
-                <option value="turning">Turning points</option>
+                <option value="closed">Closed cycles (B/C only)</option>
               </select>
             </label>
           </div>

@@ -1,14 +1,40 @@
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=Unbounded:wght@500;700&display=swap");
+
 :root {
-  color-scheme: light dark;
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Noto Sans JP", sans-serif;
+  color-scheme: dark;
+  font-family: "Space Grotesk", "Noto Sans JP", sans-serif;
+  --bg-0: #070a0f;
+  --bg-1: #0c121c;
+  --bg-2: #0f1826;
+  --text-1: #e6f4ff;
+  --text-2: #b7d6ee;
+  --text-3: #7ea3c4;
+  --accent: #5ef0ff;
+  --accent-2: #9dffb3;
+  --border: rgba(130, 170, 210, 0.18);
+  --card: rgba(12, 18, 28, 0.7);
 }
 
 body {
   margin: 0;
+  background:
+    radial-gradient(1200px 600px at 70% -10%, rgba(94, 240, 255, 0.12), transparent 60%),
+    radial-gradient(900px 500px at 0% 20%, rgba(157, 255, 179, 0.08), transparent 55%),
+    linear-gradient(160deg, #05070c 0%, #0b1320 40%, #0a121c 100%);
+  color: var(--text-1);
+  min-height: 100vh;
 }
 
 .container {
-  padding: 16px;
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+h2 {
+  font-family: "Unbounded", "Space Grotesk", sans-serif;
+  letter-spacing: 0.6px;
+  margin: 6px 0 16px;
 }
 
 .row {
@@ -20,16 +46,119 @@ body {
 
 .grid {
   display: grid;
-  grid-template-columns: 1.3fr 1fr;
-  gap: 12px;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 14px;
   align-items: start;
 }
 
 .card {
-  border: 1px solid rgba(127,127,127,0.25);
-  border-radius: 12px;
-  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 14px;
+  background: linear-gradient(160deg, rgba(18, 26, 40, 0.85), rgba(10, 16, 26, 0.8));
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(8px);
 }
+
+.plotStage {
+  padding: 14px;
+}
+
+.plotRow {
+  display: flex;
+  gap: 16px;
+  align-items: stretch;
+}
+
+.plotArea {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--accent);
+  background: radial-gradient(circle at 20% 20%, rgba(94, 240, 255, 0.08), transparent 60%);
+  border-radius: 16px;
+  border: 1px solid rgba(94, 240, 255, 0.12);
+  padding: 0;
+  overflow: hidden;
+}
+
+.plotControls {
+  width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.controlGroup {
+  border: 1px solid rgba(94, 240, 255, 0.12);
+  border-radius: 14px;
+  padding: 10px;
+  background: rgba(8, 14, 24, 0.7);
+}
+
+.controlTitle {
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-bottom: 6px;
+}
+
+.buttonStack {
+  display: grid;
+  gap: 8px;
+}
+
+.statRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.statPill {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(94, 240, 255, 0.08);
+  border: 1px solid rgba(94, 240, 255, 0.18);
+  font-size: 11px;
+}
+
+.controlField {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.controlField input,
+.controlField select {
+  width: 120px;
+}
+
+.legendGroup {
+  font-size: 12px;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  color: var(--text-2);
+}
+
+.legendDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  box-shadow: 0 0 8px rgba(94, 240, 255, 0.6);
+}
+
+.legendDotA { background: rgba(230, 250, 255, 0.9); }
+.legendDotB { background: rgba(94, 240, 255, 0.8); }
+.legendDotC { background: rgba(157, 255, 179, 0.8); }
 
 label {
   display: inline-flex;
@@ -38,29 +167,51 @@ label {
 }
 
 select, button, input[type="number"] {
-  padding: 6px 8px;
-  border-radius: 10px;
-  border: 1px solid rgba(127,127,127,0.35);
-  background: transparent;
+  padding: 7px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(130, 170, 210, 0.28);
+  background: rgba(8, 12, 18, 0.5);
+  color: var(--text-1);
 }
 
 button {
   cursor: pointer;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(94, 240, 255, 0.6);
+  box-shadow: 0 6px 18px rgba(94, 240, 255, 0.2);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
 }
 
 .small {
   opacity: 0.8;
   font-size: 12px;
+  color: var(--text-2);
 }
 
 .mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Noto Sans Mono", monospace;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
 }
 
 textarea {
-  border: 1px solid rgba(127,127,127,0.35);
-  background: transparent;
+  width: 100%;
+  min-height: 80px;
+  border: 1px solid rgba(130, 170, 210, 0.28);
+  background: rgba(8, 12, 18, 0.6);
   color: inherit;
+  border-radius: 12px;
+  padding: 10px;
+  margin-top: 6px;
 }
 
 table {
@@ -79,18 +230,40 @@ th, td {
 .tabs {
   display: flex;
   gap: 8px;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 
 .tab {
-  padding: 8px 10px;
-  border-radius: 10px;
-  border: 1px solid rgba(127,127,127,0.35);
-  background: transparent;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(130, 170, 210, 0.28);
+  background: rgba(12, 18, 28, 0.6);
   cursor: pointer;
+  font-weight: 600;
 }
 
 .tabActive {
-  border-color: rgba(127,127,127,0.7);
-  font-weight: 600;
+  border-color: rgba(94, 240, 255, 0.7);
+  color: var(--accent);
+  box-shadow: 0 0 16px rgba(94, 240, 255, 0.2);
+}
+
+@media (max-width: 980px) {
+  .plotRow {
+    flex-direction: column;
+  }
+
+  .plotControls {
+    width: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .controlGroup {
+    flex: 1 1 220px;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+  }
 }

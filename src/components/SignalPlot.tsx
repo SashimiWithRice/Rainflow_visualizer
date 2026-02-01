@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import * as d3 from "d3";
-import type { TurningPoint } from "../lib/rainflow";
+import type { Cycle, TurningPoint } from "../lib/rainflow";
+import { PLOT_BASE, getYDomain } from "../lib/plotLayout";
 
 export type PlotStyle = {
   theme: "clean" | "neon" | "ink";
@@ -16,6 +17,8 @@ type Props = {
   currentTPIndex: number;
   heightPx?: number;
   style?: PlotStyle;
+  cycles?: Cycle[];
+  windowABCD?: [TurningPoint, TurningPoint, TurningPoint, TurningPoint] | null;
 };
 
 const defaultStyle: PlotStyle = {
@@ -30,8 +33,10 @@ export function SignalPlot({
   raw,
   turningPoints,
   currentTPIndex,
-  heightPx = 260,
-  style = defaultStyle
+  heightPx = PLOT_BASE.height,
+  style = defaultStyle,
+  cycles = [],
+  windowABCD = null
 }: Props) {
   const ref = useRef<SVGSVGElement | null>(null);
 
@@ -48,8 +53,8 @@ export function SignalPlot({
 
   useEffect(() => {
     const svg = d3.select(ref.current);
-    const W = 900, H = 260;
-    const m = { l: 52, r: 22, t: 18, b: 34 };
+    const W = PLOT_BASE.width, H = PLOT_BASE.height;
+    const m = PLOT_BASE.margin;
     const innerW = W - m.l - m.r;
     const innerH = H - m.t - m.b;
 
@@ -65,10 +70,9 @@ export function SignalPlot({
       .domain([0, Math.max(1, raw.length - 1)])
       .range([m.l, W - m.r]);
 
-    const extent = d3.extent(raw) as [number, number];
+    const extent = getYDomain(raw);
     const y = d3.scaleLinear()
-      .domain(extent[0] === extent[1] ? [extent[0] - 1, extent[1] + 1] : extent)
-      .nice()
+      .domain(extent)
       .range([H - m.b, m.t]);
 
     const defs = svg.append("defs");
@@ -118,6 +122,14 @@ export function SignalPlot({
       .enter()
       .append("feMergeNode")
       .attr("in", d => d);
+
+    const cycleGrad = defs.append("linearGradient")
+      .attr("id", `cycle-${ids.bg}`)
+      .attr("x1", "0%").attr("y1", "0%")
+      .attr("x2", "100%").attr("y2", "0%");
+    cycleGrad.append("stop").attr("offset", "0%").attr("stop-color", "currentColor").attr("stop-opacity", 0.08);
+    cycleGrad.append("stop").attr("offset", "50%").attr("stop-color", "currentColor").attr("stop-opacity", 0.35);
+    cycleGrad.append("stop").attr("offset", "100%").attr("stop-color", "currentColor").attr("stop-opacity", 0.08);
 
     svg.append("rect")
       .attr("x", 0).attr("y", 0)
@@ -222,6 +234,46 @@ export function SignalPlot({
 
     const dotR = theme === "clean" ? 3.8 : 4.2;
 
+    const k = Math.min(Math.max(currentTPIndex, 0), turningPoints.length - 1);
+    if (turningPoints.length > 0) {
+      const cur = turningPoints[k];
+      svg.append("line")
+        .attr("x1", x(cur.i))
+        .attr("x2", x(cur.i))
+        .attr("y1", m.t)
+        .attr("y2", H - m.b)
+        .attr("stroke", "currentColor")
+        .attr("stroke-opacity", 0.2)
+        .attr("stroke-width", 1.2)
+        .attr("stroke-dasharray", "3 6");
+    }
+
+    const cyclesToDraw = cycles.length > 80 ? cycles.slice(cycles.length - 80) : cycles;
+    if (cyclesToDraw.length) {
+      const cg = svg.append("g").attr("class", "cycles");
+      for (const c of cyclesToDraw) {
+        const xb = x(c.b.i), yb = y(c.b.x);
+        const xc = x(c.c.i), yc = y(c.c.x);
+        const midX = (xb + xc) * 0.5;
+        const midY = Math.min(yb, yc) - 18 - Math.min(46, Math.abs(yb - yc) * 0.35);
+
+        cg.append("path")
+          .attr("d", `M ${xb} ${yb} Q ${midX} ${midY} ${xc} ${yc}`)
+          .attr("fill", "none")
+          .attr("stroke", `url(#cycle-${ids.bg})`)
+          .attr("stroke-width", 2.4)
+          .attr("stroke-opacity", 0.8)
+          .attr("filter", `url(#${ids.glow})`);
+
+        cg.append("circle")
+          .attr("cx", midX)
+          .attr("cy", midY + 4)
+          .attr("r", 3.4 + Math.min(6, c.range * 0.35))
+          .attr("fill", "currentColor")
+          .attr("opacity", 0.14 + 0.18 * c.count);
+      }
+    }
+
     const tpG = svg.append("g");
     tpG.selectAll("g.tp")
       .data(turningPoints)
@@ -245,7 +297,6 @@ export function SignalPlot({
           .attr("opacity", 0.65);
       });
 
-    const k = Math.min(Math.max(currentTPIndex, 0), turningPoints.length - 1);
     if (turningPoints.length > 0) {
       const cur = turningPoints[k];
 
@@ -271,7 +322,30 @@ export function SignalPlot({
         .attr("opacity", 0.75);
     }
 
-  }, [raw, turningPoints, currentTPIndex, heightPx, style, ids]);
+    if (windowABCD) {
+      const [A, B, C, D] = windowABCD;
+      const pts = [A, B, C, D].map(p => [x(p.i), y(p.x)]);
+      svg.append("path")
+        .attr("d", `M ${pts[0][0]} ${pts[0][1]} L ${pts[1][0]} ${pts[1][1]} L ${pts[2][0]} ${pts[2][1]} L ${pts[3][0]} ${pts[3][1]}`)
+        .attr("fill", "none")
+        .attr("stroke", "currentColor")
+        .attr("stroke-opacity", 0.5)
+        .attr("stroke-width", 2.6)
+        .attr("stroke-dasharray", "4 6");
+
+      const labels = ["A", "B", "C", "D"];
+      labels.forEach((label, i) => {
+        svg.append("text")
+          .attr("x", pts[i][0] + 8)
+          .attr("y", pts[i][1] - 8)
+          .attr("fill", "currentColor")
+          .attr("opacity", 0.7)
+          .attr("font-size", 12)
+          .text(label);
+      });
+    }
+
+  }, [raw, turningPoints, currentTPIndex, heightPx, style, ids, cycles, windowABCD]);
 
   return <svg ref={ref} style={{ width: "100%", height: `${heightPx}px` }} />;
 }

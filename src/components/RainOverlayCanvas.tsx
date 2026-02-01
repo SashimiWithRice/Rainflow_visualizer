@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 import type { Cycle, TurningPoint } from "../lib/rainflow";
+import { PLOT_BASE, getYDomain } from "../lib/plotLayout";
 
 export type RainMode = "cinematic" | "pagoda";
 
@@ -20,6 +21,7 @@ export type RainGraphics = {
 };
 
 type Drop = {
+  kind: "cycle";
   x: number;
   y: number;
   vx: number;
@@ -27,6 +29,9 @@ type Drop = {
   r: number;
   life: number;
   age: number;
+  t?: number;
+  b?: TurningPoint;
+  c?: TurningPoint;
 
   // pagoda mode
   targetY?: number;
@@ -65,25 +70,14 @@ export function RainOverlayCanvas({
 
   // data->pixel mapping aligned with the SVG plot (viewBox 900x260 margins)
   const chart = useMemo(() => {
-    const w = widthPx;
-    const h = heightPx;
-    const m = { l: 52, r: 22, t: 18, b: 34 };
+    const w = PLOT_BASE.width;
+    const h = PLOT_BASE.height;
+    const m = PLOT_BASE.margin;
 
     const xMin = 0;
     const xMax = Math.max(1, raw.length - 1);
 
-    let yMin = Infinity, yMax = -Infinity;
-    for (const v of raw) {
-      yMin = Math.min(yMin, v);
-      yMax = Math.max(yMax, v);
-    }
-    if (!Number.isFinite(yMin) || !Number.isFinite(yMax)) { yMin = 0; yMax = 1; }
-    if (yMin === yMax) { yMin -= 1; yMax += 1; }
-    else {
-      const pad = 0.02 * (yMax - yMin);
-      yMin -= pad;
-      yMax += pad;
-    }
+    const [yMin, yMax] = getYDomain(raw);
 
     const x = (i: number) => {
       const t = (i - xMin) / (xMax - xMin);
@@ -95,27 +89,7 @@ export function RainOverlayCanvas({
     };
 
     return { w, h, m, x, y };
-  }, [widthPx, heightPx, raw]);
-
-  const spawnPoints = useMemo(() => {
-    if (graphics.mode !== "cinematic") return [];
-
-    if (!graphics.spawnFromClosedCycles) {
-      return turningPoints.map(tp => ({
-        x: chart.x(tp.i),
-        y: chart.y(tp.x),
-        intensity: graphics.intensity * 0.25
-      }));
-    }
-
-    const pts: { x: number; y: number; intensity: number }[] = [];
-    for (const c of closedNow) {
-      const scale = Math.max(0.6, Math.min(8, graphics.intensity * (c.range + 1) / 6));
-      pts.push({ x: chart.x(c.b.i), y: chart.y(c.b.x), intensity: scale });
-      pts.push({ x: chart.x(c.c.i), y: chart.y(c.c.x), intensity: scale });
-    }
-    return pts;
-  }, [graphics.mode, graphics.spawnFromClosedCycles, turningPoints, closedNow, chart, graphics.intensity]);
+  }, [raw]);
 
   // pagoda geometry (approx): rotate turning points into (u=value, v=index)
   const pagoda = useMemo(() => {
@@ -167,29 +141,31 @@ export function RainOverlayCanvas({
     return { pts, x, y, findDropTargetV };
   }, [turningPoints, chart]);
 
-  const spawnCinematic = (x: number, y: number, intensity: number) => {
-    const n = Math.max(1, Math.round(intensity));
-    for (let i = 0; i < n; i++) {
-      dropsRef.current.push({
-        x: x + (Math.random() - 0.5) * 8,
-        y: y + (Math.random() - 0.5) * 8,
-        vx: (Math.random() - 0.5) * 18,
-        vy: graphics.baseSpeed + Math.random() * (0.7 * graphics.baseSpeed),
-        r: Math.max(1.2, graphics.size * (0.8 + Math.random() * 0.6)),
-        life: 1.2 + Math.random() * 0.9,
-        age: 0
-      });
-    }
+  const spawnCycleRunner = (b: TurningPoint, c: TurningPoint) => {
+    dropsRef.current.push({
+      kind: "cycle",
+      x: chart.x(b.i),
+      y: chart.y(b.x),
+      vx: 0,
+      vy: 0,
+      r: Math.max(1.6, graphics.size * 0.85),
+      life: 1.3 + Math.random() * 0.8,
+      age: 0,
+      t: 0,
+      b,
+      c
+    });
   };
 
   const spawnPagoda = (u: number, v: number) => {
     if (!pagoda) return;
-    if (dropsRef.current.length > graphics.pagodaMaxDrops) return;
+    if (dropsRef.current.length >= graphics.pagodaMaxDrops) return;
 
     const targetV = pagoda.findDropTargetV(u, v);
     if (targetV == null) return;
 
     dropsRef.current.push({
+      kind: "fall",
       x: pagoda.x(u),
       y: pagoda.y(v),
       vx: 0,
@@ -206,19 +182,21 @@ export function RainOverlayCanvas({
     const c = canvasRef.current!;
     const ctx = c.getContext("2d")!;
     const dpr = window.devicePixelRatio || 1;
+    const scaleX = widthPx / PLOT_BASE.width;
+    const scaleY = heightPx / PLOT_BASE.height;
 
     c.width = Math.floor(widthPx * dpr);
     c.height = Math.floor(heightPx * dpr);
     c.style.width = `${widthPx}px`;
     c.style.height = `${heightPx}px`;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.setTransform(dpr * scaleX, 0, 0, dpr * scaleY, 0, 0);
 
     const loop = (t: number) => {
       if (!graphics.enabled) return;
 
       // if paused: render static helpers only
       if (!playing) {
-        ctx.clearRect(0, 0, widthPx, heightPx);
+        ctx.clearRect(0, 0, PLOT_BASE.width, PLOT_BASE.height);
         if (graphics.mode === "pagoda" && graphics.showRoofPath && pagoda) drawPagodaPath(ctx, pagoda);
         return;
       }
@@ -229,12 +207,13 @@ export function RainOverlayCanvas({
 
       // clear / trail
       if (graphics.trail <= 0) {
-        ctx.clearRect(0, 0, widthPx, heightPx);
+        ctx.clearRect(0, 0, PLOT_BASE.width, PLOT_BASE.height);
       } else {
-        const a = clamp01(1 - graphics.trail);
+        const a = clamp01(0.2 + 0.7 * (1 - graphics.trail));
         ctx.save();
-        ctx.globalAlpha = a;
-        ctx.clearRect(0, 0, widthPx, heightPx);
+        ctx.globalCompositeOperation = "destination-out";
+        ctx.fillStyle = `rgba(0,0,0,${a})`;
+        ctx.fillRect(0, 0, PLOT_BASE.width, PLOT_BASE.height);
         ctx.restore();
       }
 
@@ -243,8 +222,8 @@ export function RainOverlayCanvas({
       // spawn
       const p = clamp01(graphics.spawnProb);
       if (graphics.mode === "cinematic") {
-        for (const sp of spawnPoints) {
-          if (Math.random() < p) spawnCinematic(sp.x, sp.y, sp.intensity);
+        for (const c of closedNow) {
+          if (Math.random() < p) spawnCycleRunner(c.b, c.c);
         }
       } else if (graphics.mode === "pagoda" && pagoda) {
         // pick random local maxima turning point (simple peak heuristic)
@@ -264,15 +243,23 @@ export function RainOverlayCanvas({
         d.age += dt;
 
         if (graphics.mode === "cinematic") {
-          d.vy += g * dt;
-          d.x += d.vx * dt;
-          d.y += d.vy * dt;
-
-          if (d.y > heightPx - 6) {
-            splash(ctx, d.x, heightPx - 6);
+          if (d.kind === "cycle" && d.b && d.c) {
+            const tNext = Math.min(1, (d.t ?? 0) + dt * 0.9);
+            d.t = tNext;
+            const xb = chart.x(d.b.i);
+            const yb = chart.y(d.b.x);
+            const xc = chart.x(d.c.i);
+            const yc = chart.y(d.c.x);
+            const midX = (xb + xc) * 0.5;
+            const midY = Math.min(yb, yc) - 18 - Math.min(46, Math.abs(yb - yc) * 0.35);
+            const xt = (1 - tNext) * (1 - tNext) * xb + 2 * (1 - tNext) * tNext * midX + tNext * tNext * xc;
+            const yt = (1 - tNext) * (1 - tNext) * yb + 2 * (1 - tNext) * tNext * midY + tNext * tNext * yc;
+            d.x = xt;
+            d.y = yt;
+            if (tNext >= 1) splash(ctx, xc, yc);
+            if (tNext < 1 && d.age < d.life) next.push(d);
             continue;
           }
-          if (d.age < d.life) next.push(d);
         } else {
           if (!d.stop) {
             d.vy += (0.5 * g) * dt;
@@ -302,7 +289,7 @@ export function RainOverlayCanvas({
       rafRef.current = null;
       lastRef.current = null;
     };
-  }, [widthPx, heightPx, spawnPoints, playing, graphics, pagoda, turningPoints]);
+  }, [widthPx, heightPx, playing, graphics, pagoda, turningPoints, closedNow]);
 
   return (
     <canvas
@@ -314,38 +301,61 @@ export function RainOverlayCanvas({
 
 function drawDrop(ctx: CanvasRenderingContext2D, d: Drop, g: RainGraphics) {
   const a = 1 - d.age / d.life;
-  const alpha = 0.15 + 0.75 * a;
+  const alpha = 0.25 + 0.6 * a;
 
   const speed = Math.max(0, d.vy);
   const stretch = Math.min(22, (g.stretch * 0.06) * speed);
 
   ctx.save();
   ctx.globalAlpha = alpha;
+  ctx.shadowBlur = 16;
+  ctx.shadowColor = "rgba(90, 255, 190, 0.4)";
 
   ctx.translate(d.x, d.y);
   ctx.scale(1, 1 + stretch / 20);
 
+  const grad = ctx.createRadialGradient(-d.r * 0.4, -d.r * 0.6, 0.6, 0, 0, d.r * 1.6);
+  grad.addColorStop(0, "rgba(235, 255, 245, 0.95)");
+  grad.addColorStop(0.45, "rgba(140, 255, 210, 0.7)");
+  grad.addColorStop(1, "rgba(40, 170, 140, 0.55)");
+
   ctx.beginPath();
   ctx.ellipse(0, 0, d.r * 0.75, d.r * 1.25, 0, 0, Math.PI * 2);
-  ctx.fillStyle = "currentColor";
+  ctx.fillStyle = grad;
   ctx.fill();
 
-  ctx.globalAlpha *= 0.6;
+  ctx.globalAlpha *= 0.65;
   ctx.beginPath();
   ctx.ellipse(-d.r * 0.2, -d.r * 0.5, d.r * 0.25, d.r * 0.55, 0, 0, Math.PI * 2);
   ctx.fillStyle = "white";
   ctx.fill();
 
+  ctx.globalAlpha *= 0.55;
+  ctx.beginPath();
+  ctx.ellipse(0.2, d.r * 0.2, d.r * 0.9, d.r * 0.35, 0, 0, Math.PI * 2);
+  ctx.strokeStyle = "rgba(180, 240, 255, 0.7)";
+  ctx.lineWidth = 0.7;
+  ctx.stroke();
+
   ctx.restore();
 }
 
 function splash(ctx: CanvasRenderingContext2D, x: number, y: number) {
-  for (let k = 0; k < 4; k++) {
+  ctx.save();
+  ctx.globalAlpha = 0.35;
+  ctx.beginPath();
+  ctx.arc(x, y, 6 + Math.random() * 6, 0, Math.PI * 2);
+  ctx.strokeStyle = "rgba(180, 240, 255, 0.7)";
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+  ctx.restore();
+
+  for (let k = 0; k < 3; k++) {
     ctx.save();
-    ctx.globalAlpha = 0.25;
+    ctx.globalAlpha = 0.3;
     ctx.beginPath();
-    ctx.arc(x + (Math.random() - 0.5) * 12, y + (Math.random() - 0.5) * 5, 1.2, 0, Math.PI * 2);
-    ctx.fillStyle = "currentColor";
+    ctx.arc(x + (Math.random() - 0.5) * 12, y + (Math.random() - 0.5) * 5, 1.1, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(120, 220, 255, 0.8)";
     ctx.fill();
     ctx.restore();
   }
@@ -372,10 +382,17 @@ function drawPagodaDrop(ctx: CanvasRenderingContext2D, d: Drop) {
 
   ctx.save();
   ctx.globalAlpha = alpha;
+  ctx.shadowBlur = 10;
+  ctx.shadowColor = "rgba(140, 255, 210, 0.35)";
+
+  const grad = ctx.createRadialGradient(d.x - d.r * 0.5, d.y - d.r * 0.6, 0.2, d.x, d.y, d.r * 1.6);
+  grad.addColorStop(0, "rgba(230, 255, 245, 0.95)");
+  grad.addColorStop(0.55, "rgba(130, 240, 200, 0.75)");
+  grad.addColorStop(1, "rgba(40, 160, 140, 0.55)");
 
   ctx.beginPath();
   ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
-  ctx.fillStyle = "currentColor";
+  ctx.fillStyle = grad;
   ctx.fill();
 
   ctx.globalAlpha *= 0.6;
