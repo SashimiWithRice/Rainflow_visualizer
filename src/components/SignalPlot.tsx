@@ -73,6 +73,7 @@ export function SignalPlot({
     const extent = getYDomain(raw);
     const y = d3.scaleLinear()
       .domain(extent)
+      .nice()
       .range([H - m.b, m.t]);
 
     const defs = svg.append("defs");

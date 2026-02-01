@@ -13,6 +13,7 @@ export function getYDomain(raw: number[]): [number, number] {
   }
   if (!Number.isFinite(yMin) || !Number.isFinite(yMax)) return [0, 1];
   if (yMin === yMax) return [yMin - 1, yMax + 1];
-  const pad = 0.02 * (yMax - yMin);
+  const range = yMax - yMin;
+  const pad = Math.max(0.6, 0.06 * range);
   return [yMin - pad, yMax + pad];
 }
