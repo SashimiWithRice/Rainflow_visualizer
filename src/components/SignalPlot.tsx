@@ -317,7 +317,8 @@ export function SignalPlot({
           .attr("fill", "white")
           .attr("opacity", 0.65);
 
-        g.style("cursor", "pointer").on("click", (_event, d: TurningPoint) => {
+        g.style("cursor", "pointer").on("click", function () {
+          const d = d3.select(this).datum() as TurningPoint;
           onSelectElement?.({ kind: "turning", index: d.i, value: d.x });
         });
       });
