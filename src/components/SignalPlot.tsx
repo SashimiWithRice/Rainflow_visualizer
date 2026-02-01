@@ -296,7 +296,7 @@ export function SignalPlot({
     }
 
     const tpG = svg.append("g");
-    tpG.selectAll("g.tp")
+    tpG.selectAll<SVGGElement, TurningPoint>("g.tp")
       .data(turningPoints)
       .enter()
       .append("g")
@@ -317,7 +317,7 @@ export function SignalPlot({
           .attr("fill", "white")
           .attr("opacity", 0.65);
 
-        g.style("cursor", "pointer").on("click", (event, d) => {
+        g.style("cursor", "pointer").on("click", (_event, d) => {
           onSelectElement?.({ kind: "turning", index: d.i, value: d.x });
         });
       });
