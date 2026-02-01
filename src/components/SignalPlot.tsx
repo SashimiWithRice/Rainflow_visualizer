@@ -102,7 +102,7 @@ export function SignalPlot({
       .attr("result", "blur");
     glow.append("feMerge")
       .selectAll("feMergeNode")
-      .data(["blur", "SourceGraphic"])
+      .data<string>(["blur", "SourceGraphic"])
       .enter()
       .append("feMergeNode")
       .attr("in", d => d);
@@ -114,7 +114,7 @@ export function SignalPlot({
     dot.append("feGaussianBlur").attr("stdDeviation", 1.2).attr("result", "b");
     dot.append("feMerge")
       .selectAll("feMergeNode")
-      .data(["b", "SourceGraphic"])
+      .data<string>(["b", "SourceGraphic"])
       .enter()
       .append("feMergeNode")
       .attr("in", d => d);
@@ -136,14 +136,22 @@ export function SignalPlot({
       svg.append("g")
         .attr("transform", `translate(0,${H - m.b})`)
         .call(gx as any)
-        .call(g => g.selectAll("line").attr("stroke", "currentColor").attr("stroke-opacity", gridAlpha))
-        .call(g => g.selectAll("path").attr("stroke-opacity", 0));
+        .call((g: d3.Selection<SVGGElement, unknown, null, undefined>) =>
+          g.selectAll("line").attr("stroke", "currentColor").attr("stroke-opacity", gridAlpha)
+        )
+        .call((g: d3.Selection<SVGGElement, unknown, null, undefined>) =>
+          g.selectAll("path").attr("stroke-opacity", 0)
+        );
 
       svg.append("g")
         .attr("transform", `translate(${m.l},0)`)
         .call(gy as any)
-        .call(g => g.selectAll("line").attr("stroke", "currentColor").attr("stroke-opacity", gridAlpha))
-        .call(g => g.selectAll("path").attr("stroke-opacity", 0));
+        .call((g: d3.Selection<SVGGElement, unknown, null, undefined>) =>
+          g.selectAll("line").attr("stroke", "currentColor").attr("stroke-opacity", gridAlpha)
+        )
+        .call((g: d3.Selection<SVGGElement, unknown, null, undefined>) =>
+          g.selectAll("path").attr("stroke-opacity", 0)
+        );
     }
 
     const ax = d3.axisBottom(x).ticks(10);
@@ -152,14 +160,22 @@ export function SignalPlot({
     svg.append("g")
       .attr("transform", `translate(0,${H - m.b})`)
       .call(ax as any)
-      .call(g => g.selectAll("path,line").attr("stroke", "currentColor").attr("stroke-opacity", axisAlpha))
-      .call(g => g.selectAll("text").attr("fill", "currentColor").attr("opacity", 0.65).attr("font-size", 11));
+      .call((g: d3.Selection<SVGGElement, unknown, null, undefined>) =>
+        g.selectAll("path,line").attr("stroke", "currentColor").attr("stroke-opacity", axisAlpha)
+      )
+      .call((g: d3.Selection<SVGGElement, unknown, null, undefined>) =>
+        g.selectAll("text").attr("fill", "currentColor").attr("opacity", 0.65).attr("font-size", 11)
+      );
 
     svg.append("g")
       .attr("transform", `translate(${m.l},0)`)
       .call(ay as any)
-      .call(g => g.selectAll("path,line").attr("stroke", "currentColor").attr("stroke-opacity", axisAlpha))
-      .call(g => g.selectAll("text").attr("fill", "currentColor").attr("opacity", 0.65).attr("font-size", 11));
+      .call((g: d3.Selection<SVGGElement, unknown, null, undefined>) =>
+        g.selectAll("path,line").attr("stroke", "currentColor").attr("stroke-opacity", axisAlpha)
+      )
+      .call((g: d3.Selection<SVGGElement, unknown, null, undefined>) =>
+        g.selectAll("text").attr("fill", "currentColor").attr("opacity", 0.65).attr("font-size", 11)
+      );
 
     const curve = style.smooth ? d3.curveCatmullRom.alpha(0.9) : d3.curveLinear;
 

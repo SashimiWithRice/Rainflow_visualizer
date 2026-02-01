@@ -142,7 +142,7 @@ export function RainOverlayCanvas({
       return chart.m.t + t * (chart.h - chart.m.t - chart.m.b);
     };
 
-    const segs = [];
+    const segs: { a: { u: number; v: number }; b: { u: number; v: number } }[] = [];
     for (let i = 0; i < pts.length - 1; i++) segs.push({ a: pts[i], b: pts[i + 1] });
 
     const findDropTargetV = (u0: number, v0: number) => {
