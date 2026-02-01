@@ -165,7 +165,7 @@ export function RainOverlayCanvas({
     if (targetV == null) return;
 
     dropsRef.current.push({
-      kind: "fall",
+      kind: "cycle",
       x: pagoda.x(u),
       y: pagoda.y(v),
       vx: 0,
