@@ -3,7 +3,7 @@ import type { Options, ResidueHandling } from "./lib/rainflow";
 import { buildMatrix, rainflowCount } from "./lib/rainflow";
 import { PLOT_BASE } from "./lib/plotLayout";
 
-import { SignalPlot, type PlotStyle } from "./components/SignalPlot";
+import { SignalPlot, type PlotElement, type PlotStyle } from "./components/SignalPlot";
 import { RainOverlayCanvas, type RainGraphics } from "./components/RainOverlayCanvas";
 import { StackView } from "./components/StackView";
 import { CycleTable } from "./components/CycleTable";
@@ -98,6 +98,8 @@ export default function App() {
   const plotWrapRef = useRef<HTMLDivElement | null>(null);
   const [plotWidth, setPlotWidth] = useState(PLOT_BASE.width);
   const plotHeight = PLOT_BASE.height;
+  const [xDomain, setXDomain] = useState<[number, number] | null>(null);
+  const [tagInfo, setTagInfo] = useState<string>("Select an element to see its analysis meaning.");
 
   useEffect(() => {
     const el = plotWrapRef.current;
@@ -112,6 +114,25 @@ export default function App() {
   }, []);
 
   const rawText = raw.join(", ");
+
+  const handleSelect = (el: PlotElement) => {
+    switch (el.kind) {
+      case "raw":
+        setTagInfo("Raw waveform: full input signal. This provides context (amplitude, trend, noise) but is not directly counted.");
+        break;
+      case "turning":
+        setTagInfo(`Turning point (i=${el.index}, x=${el.value.toFixed(2)}): local extremum used to form cycles. Rainflow counts only these.`);
+        break;
+      case "cycle":
+        setTagInfo(`Closed cycle B–C: range=${el.range.toFixed(2)}, mean=${el.mean.toFixed(2)}, count=${el.count}. This is a counted fatigue cycle.`);
+        break;
+      case "abcd":
+        setTagInfo("A–B–C–D window: 4-point stack check. If |B−C| is smallest, the B–C cycle closes.");
+        break;
+      default:
+        setTagInfo("Select an element to see its analysis meaning.");
+    }
+  };
 
   return (
     <div className="container">
@@ -128,6 +149,10 @@ export default function App() {
               style={plotStyle}
               cycles={cyclesUpToCursor}
               windowABCD={ev?.windowABCD ?? null}
+              xDomain={xDomain}
+              onZoom={(d) => setXDomain(d)}
+              onResetZoom={() => setXDomain(null)}
+              onSelectElement={handleSelect}
             />
             <RainOverlayCanvas
               widthPx={plotWidth}
@@ -137,6 +162,7 @@ export default function App() {
               closedNow={closedNow}
               playing={playing}
               graphics={gfx}
+              xDomain={xDomain}
             />
           </div>
 
@@ -203,6 +229,16 @@ export default function App() {
               <div className="legendItem"><span className="legendDot legendDotA" />Turning points</div>
               <div className="legendItem"><span className="legendDot legendDotB" />Closed cycles (B–C)</div>
               <div className="legendItem"><span className="legendDot legendDotC" />Window A‑B‑C‑D</div>
+            </div>
+
+            <div className="controlGroup">
+              <div className="controlTitle">Meaning</div>
+              <div className="tagInfo">{tagInfo}</div>
+              {xDomain && (
+                <button onClick={() => setXDomain(null)} style={{ marginTop: 8 }}>
+                  Reset zoom
+                </button>
+              )}
             </div>
           </div>
         </div>

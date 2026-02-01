@@ -11,6 +11,12 @@ export type PlotStyle = {
   glow: number; // 0..1
 };
 
+export type PlotElement =
+  | { kind: "raw" }
+  | { kind: "turning"; index: number; value: number }
+  | { kind: "cycle"; b: TurningPoint; c: TurningPoint; range: number; mean: number; count: number }
+  | { kind: "abcd"; a: TurningPoint; b: TurningPoint; c: TurningPoint; d: TurningPoint };
+
 type Props = {
   raw: number[];
   turningPoints: TurningPoint[];
@@ -19,6 +25,10 @@ type Props = {
   style?: PlotStyle;
   cycles?: Cycle[];
   windowABCD?: [TurningPoint, TurningPoint, TurningPoint, TurningPoint] | null;
+  xDomain?: [number, number] | null;
+  onZoom?: (domain: [number, number]) => void;
+  onResetZoom?: () => void;
+  onSelectElement?: (el: PlotElement) => void;
 };
 
 const defaultStyle: PlotStyle = {
@@ -36,7 +46,11 @@ export function SignalPlot({
   heightPx = PLOT_BASE.height,
   style = defaultStyle,
   cycles = [],
-  windowABCD = null
+  windowABCD = null,
+  xDomain = null,
+  onZoom,
+  onResetZoom,
+  onSelectElement
 }: Props) {
   const ref = useRef<SVGSVGElement | null>(null);
 
@@ -66,8 +80,12 @@ export function SignalPlot({
     const axisAlpha = theme === "ink" ? 0.40 : 0.30;
     const areaAlpha = theme === "clean" ? 0.18 : theme === "ink" ? 0.12 : 0.22;
 
+    const xMax = Math.max(1, raw.length - 1);
+    const xMin = Math.max(0, Math.min(xDomain?.[0] ?? 0, xMax));
+    const xMaxClamped = Math.max(xMin + 1e-6, Math.min(xDomain?.[1] ?? xMax, xMax));
+
     const x = d3.scaleLinear()
-      .domain([0, Math.max(1, raw.length - 1)])
+      .domain([xMin, xMaxClamped])
       .range([m.l, W - m.r]);
 
     const extent = getYDomain(raw);
@@ -264,7 +282,9 @@ export function SignalPlot({
           .attr("stroke", `url(#cycle-${ids.bg})`)
           .attr("stroke-width", 2.4)
           .attr("stroke-opacity", 0.8)
-          .attr("filter", `url(#${ids.glow})`);
+          .attr("filter", `url(#${ids.glow})`)
+          .style("cursor", "pointer")
+          .on("click", () => onSelectElement?.({ kind: "cycle", b: c.b, c: c.c, range: c.range, mean: c.mean, count: c.count }));
 
         cg.append("circle")
           .attr("cx", midX)
@@ -296,6 +316,10 @@ export function SignalPlot({
           .attr("cy", -dotR * 0.35)
           .attr("fill", "white")
           .attr("opacity", 0.65);
+
+        g.style("cursor", "pointer").on("click", (event, d) => {
+          onSelectElement?.({ kind: "turning", index: d.i, value: d.x });
+        });
       });
 
     if (turningPoints.length > 0) {
@@ -332,7 +356,9 @@ export function SignalPlot({
         .attr("stroke", "currentColor")
         .attr("stroke-opacity", 0.5)
         .attr("stroke-width", 2.6)
-        .attr("stroke-dasharray", "4 6");
+        .attr("stroke-dasharray", "4 6")
+        .style("cursor", "pointer")
+        .on("click", () => onSelectElement?.({ kind: "abcd", a: A, b: B, c: C, d: D }));
 
       const labels = ["A", "B", "C", "D"];
       labels.forEach((label, i) => {
@@ -346,7 +372,43 @@ export function SignalPlot({
       });
     }
 
-  }, [raw, turningPoints, currentTPIndex, heightPx, style, ids, cycles, windowABCD]);
+    const brush = d3.brushX()
+      .extent([[m.l, m.t], [W - m.r, H - m.b]])
+      .on("end", (event) => {
+        if (!event.selection) return;
+        const [sx, ex] = event.selection as [number, number];
+        if (Math.abs(ex - sx) < 4) return;
+        const d0 = x.invert(sx);
+        const d1 = x.invert(ex);
+        onZoom?.([Math.min(d0, d1), Math.max(d0, d1)]);
+      });
+
+    const gBrush = svg.append("g")
+      .attr("class", "brush")
+      .call(brush);
+
+    gBrush.selectAll<SVGRectElement, unknown>(".overlay")
+      .style("cursor", "crosshair")
+      .on("click", (event) => {
+        const [mx] = d3.pointer(event);
+        const xVal = x.invert(mx);
+        let best: TurningPoint | null = null;
+        let bestDx = Infinity;
+        for (const tp of turningPoints) {
+          const dx = Math.abs(tp.i - xVal);
+          if (dx < bestDx) { bestDx = dx; best = tp; }
+        }
+        if (best && bestDx <= 0.8) {
+          onSelectElement?.({ kind: "turning", index: best.i, value: best.x });
+        } else {
+          onSelectElement?.({ kind: "raw" });
+        }
+      });
+
+    svg.on("dblclick", () => onResetZoom?.());
+    svg.on("click", () => onSelectElement?.({ kind: "raw" }));
+
+  }, [raw, turningPoints, currentTPIndex, heightPx, style, ids, cycles, windowABCD, xDomain, onZoom, onResetZoom, onSelectElement]);
 
   return <svg ref={ref} style={{ width: "100%", height: `${heightPx}px` }} />;
 }

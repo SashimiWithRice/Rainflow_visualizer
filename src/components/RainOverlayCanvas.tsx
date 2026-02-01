@@ -45,6 +45,7 @@ type Props = {
   raw: number[];
   turningPoints: TurningPoint[];
   closedNow: Cycle[];
+  xDomain?: [number, number] | null;
 
   playing: boolean;
   graphics: RainGraphics;
@@ -60,6 +61,7 @@ export function RainOverlayCanvas({
   raw,
   turningPoints,
   closedNow,
+  xDomain,
   playing,
   graphics
 }: Props) {
@@ -74,8 +76,9 @@ export function RainOverlayCanvas({
     const h = PLOT_BASE.height;
     const m = PLOT_BASE.margin;
 
-    const xMin = 0;
-    const xMax = Math.max(1, raw.length - 1);
+    const xMaxRaw = Math.max(1, raw.length - 1);
+    const xMin = Math.max(0, Math.min(xDomain?.[0] ?? 0, xMaxRaw));
+    const xMax = Math.max(xMin + 1e-6, Math.min(xDomain?.[1] ?? xMaxRaw, xMaxRaw));
 
     const [yMin, yMax] = getYDomain(raw);
 
@@ -89,7 +92,7 @@ export function RainOverlayCanvas({
     };
 
     return { w, h, m, x, y };
-  }, [raw]);
+  }, [raw, xDomain]);
 
   // pagoda geometry (approx): rotate turning points into (u=value, v=index)
   const pagoda = useMemo(() => {
